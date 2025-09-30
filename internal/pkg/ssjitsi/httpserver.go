@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"sheff.online/jitsibot/docs"
+	"sheff.online/ssjitsi/docs"
 )
 
 func newError(c *gin.Context, s int, err error) {

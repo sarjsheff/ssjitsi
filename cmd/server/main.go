@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
-	"sheff.online/jitsibot/internal/pkg/ssjitsi"
+	"sheff.online/ssjitsi/internal/pkg/ssjitsi"
 )
 
 // Читаем конфиг из файла (по умолчанию ssjitsi.yaml), создаем ботов и запускаем http сервер.

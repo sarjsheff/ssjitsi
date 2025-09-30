@@ -1,6 +1,6 @@
-# JitsiBot - Audio Recording Bot for Jitsi Meet
+# JitsiBot Server - Audio Recording Bot for Jitsi Meet
 
-JitsiBot is a Go-based automation tool that joins Jitsi Meet conferences and records audio from all participants. It uses Chrome automation via chromedp to interact with the Jitsi Meet web interface and captures audio streams from remote participants. The system includes a web interface for real-time monitoring of bot status and screenshots.
+JitsiBot Server is a Go-based automation tool that manages multiple bots to join Jitsi Meet conferences and record audio from all participants. It uses Chrome automation via chromedp to interact with the Jitsi Meet web interface and captures audio streams from remote participants. The system includes a web interface for real-time monitoring of bot status and screenshots.
 
 ## Features
 
@@ -8,9 +8,10 @@ JitsiBot is a Go-based automation tool that joins Jitsi Meet conferences and rec
 - 🔍 **Real-time monitoring** of participant join/leave events
 - 💾 **Automatic file organization** by user and room
 - 🎯 **WebM format** with Opus codec for efficient storage
-- 🔧 **Configurable** through command-line options
+- 🔧 **Configurable** through YAML configuration
 - 🛡️ **Headless Chrome automation** for reliable operation
 - 🌐 **Web interface** for real-time bot monitoring and screenshots
+- 🚀 **Multiple bot management** for simultaneous recordings
 
 ## How It Works
 
@@ -41,6 +42,7 @@ The Go backend:
 
 1. **Go** (version 1.24.4 or later)
 2. **Chrome/Chromium** browser
+3. **Node.js** and **npm** (for building the web interface)
 
 ### Dependencies
 
@@ -48,35 +50,34 @@ The project uses the following Go dependencies:
 - `github.com/chromedp/chromedp` - Chrome automation
 - `github.com/chromedp/cdproto` - Chrome DevTools Protocol
 
-## Usage
-
-### Single Bot Usage
+### Building from Source
 
 ```bash
-./jitsibot -room "my-conference-room" -botname "RecordingBot"
+# Build the complete application (includes web UI)
+make all
+
+# Or build step by step:
+make docs      # Generate API documentation
+make build-ui  # Build React web interface
+make ssjitsi   # Build the main server binary
+
+# Clean build artifacts
+make clean
 ```
+
+The build process will create a `ssjitsi` binary that includes the embedded web interface.
+
+## Usage
 
 ### Server Mode (Multiple Bots)
 
 ```bash
-./server -config ssjitsi.yaml
+./ssjitsi -config ssjitsi.yaml
 ```
 
 The server includes a built-in web interface available at: http://localhost:8080/
 
 ### Command Line Options
-
-#### JitsiBot (Single Bot)
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-room` | Conference room name | `ssjitsi-test` |
-| `-botname` | Bot display name in conference | `SSJitsiBot` |
-| `-datadir` | Directory for saving recordings | `../data/` |
-| `-jitsi` | Jitsi server URL | `https://meet.jit.si/` |
-| `-username` | Username for authentication | (empty) |
-| `-pass` | Password for authentication | (empty) |
-| `-help` | Show help information | `false` |
 
 #### Server (Multiple Bots)
 
@@ -87,24 +88,9 @@ The server includes a built-in web interface available at: http://localhost:8080
 
 ### Examples
 
-**Join public room (single bot):**
-```bash
-./jitsibot -room "team-meeting" -botname "TeamRecorder" -datadir "./recordings"
-```
-
-**Join password-protected room (single bot):**
-```bash
-./jitsibot -room "private-meeting" -botname "SecureRecorder" -username "user" -pass "password"
-```
-
-**Use custom Jitsi server (single bot):**
-```bash
-./jitsibot -room "conference" -jitsi "https://my-jitsi-server.com/" -datadir "/data/recordings"
-```
-
 **Run server with multiple bots:**
 ```bash
-./server -config ssjitsi.yaml
+./ssjitsi -config ssjitsi.yaml
 ```
 
 **Access web interface:**

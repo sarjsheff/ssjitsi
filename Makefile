@@ -14,6 +14,5 @@ build-ui:
 
 clean:
 	rm -rf ssjitsi
-	rm -rf server
 	rm -rf docs
 	rm -rf internal/pkg/ssjitsi/web
