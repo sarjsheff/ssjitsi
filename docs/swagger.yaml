@@ -1,0 +1,72 @@
+info:
+  contact: {}
+paths:
+  /{id}/html:
+    get:
+      consumes:
+      - application/json
+      description: do main
+      parameters:
+      - description: Bot ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: html
+      tags:
+      - bot
+  /{id}/screenshot:
+    get:
+      consumes:
+      - application/json
+      description: do screenshot
+      parameters:
+      - description: Bot ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - image/png
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      summary: screenshot
+      tags:
+      - bot
+  /bots:
+    get:
+      consumes:
+      - application/json
+      description: get bots
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "400":
+          description: Bad Request
+          schema: {}
+        "404":
+          description: Not Found
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: List bots
+      tags:
+      - main
+swagger: "2.0"

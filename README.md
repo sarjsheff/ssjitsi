@@ -1,6 +1,6 @@
 # JitsiBot - Audio Recording Bot for Jitsi Meet
 
-JitsiBot is a Go-based automation tool that joins Jitsi Meet conferences and records audio from all participants. It uses Chrome automation via chromedp to interact with the Jitsi Meet web interface and captures audio streams from remote participants.
+JitsiBot is a Go-based automation tool that joins Jitsi Meet conferences and records audio from all participants. It uses Chrome automation via chromedp to interact with the Jitsi Meet web interface and captures audio streams from remote participants. The system includes a web interface for real-time monitoring of bot status and screenshots.
 
 ## Features
 
@@ -10,6 +10,7 @@ JitsiBot is a Go-based automation tool that joins Jitsi Meet conferences and rec
 - 🎯 **WebM format** with Opus codec for efficient storage
 - 🔧 **Configurable** through command-line options
 - 🛡️ **Headless Chrome automation** for reliable operation
+- 🌐 **Web interface** for real-time bot monitoring and screenshots
 
 ## How It Works
 
@@ -49,13 +50,23 @@ The project uses the following Go dependencies:
 
 ## Usage
 
-### Basic Usage
+### Single Bot Usage
 
 ```bash
 ./jitsibot -room "my-conference-room" -botname "RecordingBot"
 ```
 
+### Server Mode (Multiple Bots)
+
+```bash
+./server -config ssjitsi.yaml
+```
+
+The server includes a built-in web interface available at: http://localhost:8080/
+
 ### Command Line Options
+
+#### JitsiBot (Single Bot)
 
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -67,22 +78,82 @@ The project uses the following Go dependencies:
 | `-pass` | Password for authentication | (empty) |
 | `-help` | Show help information | `false` |
 
+#### Server (Multiple Bots)
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-config` | Path to configuration file | `ssjitsi.yaml` |
+| `-help` | Show help information | `false` |
+
 ### Examples
 
-**Join public room:**
+**Join public room (single bot):**
 ```bash
 ./jitsibot -room "team-meeting" -botname "TeamRecorder" -datadir "./recordings"
 ```
 
-**Join password-protected room:**
+**Join password-protected room (single bot):**
 ```bash
 ./jitsibot -room "private-meeting" -botname "SecureRecorder" -username "user" -pass "password"
 ```
 
-**Use custom Jitsi server:**
+**Use custom Jitsi server (single bot):**
 ```bash
 ./jitsibot -room "conference" -jitsi "https://my-jitsi-server.com/" -datadir "/data/recordings"
 ```
+
+**Run server with multiple bots:**
+```bash
+./server -config ssjitsi.yaml
+```
+
+**Access web interface:**
+Open http://localhost:8080/ in your browser to monitor bot status and view screenshots.
+
+### Configuration File Format
+
+The server uses a YAML configuration file to manage multiple bots:
+
+```yaml
+http: ":8080"
+
+bots:
+  - Room: "conference-room-1"
+    BotName: "Recording Bot 1"
+    DataDir: "./data"
+    JitsiServer: "https://meet.jit.si/"
+    Username: ""
+    Pass: ""
+    Headless: true
+
+  - Room: "conference-room-2"
+    BotName: "Recording Bot 2"
+    DataDir: "./data"
+    JitsiServer: "https://meet.jit.si/"
+    Username: "user"
+    Pass: "password"
+    Headless: true
+```
+
+## Web Interface
+
+The server includes a built-in React web application for monitoring bot status:
+
+### Features
+- 📊 **Real-time bot list** with connection status
+- 🖼️ **Live screenshots** from each bot's browser
+- 🔄 **Auto-refresh** (bots: 10s, screenshots: 30s)
+- 📱 **Responsive design** with Bootstrap
+- ⚡ **Error handling** and loading states
+
+### Access
+After starting the server, open http://localhost:8080/ in your browser.
+
+### Architecture
+- **Frontend**: React 19.1.1 with Bootstrap 5
+- **Backend**: Go server with Gin framework
+- **Static files**: Embedded using `go:embed`
+- **API**: REST endpoints for bot data and screenshots
 
 ## Data Storage Format
 
@@ -90,11 +161,12 @@ Recordings are organized in the following structure:
 
 ```
 data/
-└── {bot-user-id}/
-    ├── {participant-user-id}_{audio-element-id}.webm     # Audio recordings
-    ├── {participant-user-id}_{audio-element-id}.json     # Start timestamp
-    ├── {participant-user-id}.json                        # Participant display name
-    └── room.json                                         # Room name
+└── {room-name}/                    # Room directory (safe filename)
+    └── {bot-session-id}/           # Bot session directory
+        ├── {participant-user-id}_{audio-element-id}.webm     # Audio recordings
+        ├── {participant-user-id}_{audio-element-id}.json     # Start timestamp
+        ├── {participant-user-id}.json                        # Participant display name
+        └── room.json                                         # Room name
 ```
 
 ### File Types
@@ -104,6 +176,13 @@ data/
    - Start timestamps (Unix milliseconds)
    - Participant display names
    - Room information
+
+### Directory Structure Details
+
+- **`{room-name}/`** - Directory named after the room (sanitized for filesystem safety)
+- **`{bot-session-id}/`** - Unique directory for each bot session
+- **Audio files** - Named with participant user ID and audio element ID
+- **Metadata files** - JSON files with timestamps and participant information
 
 ## JavaScript Components
 
