@@ -1,11 +1,11 @@
 package ssjitsi
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/chromedp/chromedp"
 	"github.com/gin-contrib/cors"
@@ -22,13 +22,34 @@ func newError(c *gin.Context, s int, err error) {
 	})
 }
 
+// BotInfo содержит информацию о боте для API
+type BotInfo struct {
+	ID         string    `json:"id"`
+	Room       string    `json:"room"`
+	BotName    string    `json:"botName"`
+	Server     string    `json:"server"`
+	AuthMethod string    `json:"authMethod"`
+	LastUpdate time.Time `json:"lastUpdate"`
+}
+
 type HttpServer struct {
-	bots   map[string]context.Context
+	bots   map[string]*Bot
 	router *gin.Engine
 }
 
-func (h *HttpServer) AddBot(b Bot) {
-	h.bots[b.ID] = b.Ctx
+func (h *HttpServer) AddBot(b *Bot) {
+	h.bots[b.ID] = b
+}
+
+// getAuthMethod определяет метод авторизации бота
+func getAuthMethod(b *Bot) string {
+	if b.JWTAppID != "" && b.JWTAppSecret != "" {
+		return "JWT"
+	}
+	if b.Username != "" || b.Pass != "" {
+		return "Password"
+	}
+	return "None"
 }
 
 func (h *HttpServer) Start(l string) error {
@@ -39,21 +60,28 @@ func (h *HttpServer) Start(l string) error {
 
 // ListBots godoc
 // @Summary      List bots
-// @Description  get bots
+// @Description  get bots with full information
 // @Tags         main
 // @Accept       json
 // @Produce      json
-// @Success      200  {array}   string
+// @Success      200  {array}   BotInfo
 // @Failure      400  {object}  error
 // @Failure      404  {object}  error
 // @Failure      500  {object}  error
 // @Router       /bots [get]
 func (h *HttpServer) ListBots(c *gin.Context) {
-	keys := make([]string, 0, len(h.bots))
-	for k := range h.bots {
-		keys = append(keys, k)
+	botInfos := make([]BotInfo, 0, len(h.bots))
+	for _, bot := range h.bots {
+		botInfos = append(botInfos, BotInfo{
+			ID:         bot.ID,
+			Room:       bot.Room,
+			BotName:    bot.BotName,
+			Server:     bot.JitsiServer,
+			AuthMethod: getAuthMethod(bot),
+			LastUpdate: time.Now(),
+		})
 	}
-	c.JSON(http.StatusOK, keys)
+	c.JSON(http.StatusOK, botInfos)
 }
 
 // HTML endpoint
@@ -72,14 +100,14 @@ func (h *HttpServer) HTML(c *gin.Context) {
 		newError(c, http.StatusBadRequest, errors.New("id required"))
 		return
 	}
-	b, ok := h.bots[id]
+	bot, ok := h.bots[id]
 	if !ok {
 		newError(c, http.StatusBadRequest, errors.New("not found"))
 		return
 	}
 
 	var res string
-	err := chromedp.Run(b,
+	err := chromedp.Run(bot.Ctx,
 		// chromedp.FullScreenshot(&buf, 100),
 		chromedp.OuterHTML("body", &res, chromedp.ByQuery),
 	)
@@ -112,14 +140,14 @@ func (h *HttpServer) Screenshot(c *gin.Context) {
 		newError(c, http.StatusBadRequest, errors.New("id required"))
 		return
 	}
-	b, ok := h.bots[id]
+	bot, ok := h.bots[id]
 	if !ok {
 		newError(c, http.StatusBadRequest, errors.New("not found"))
 		return
 	}
 
 	var buf []byte
-	err := chromedp.Run(b,
+	err := chromedp.Run(bot.Ctx,
 		chromedp.FullScreenshot(&buf, 100),
 	)
 	if err != nil {
@@ -129,8 +157,27 @@ func (h *HttpServer) Screenshot(c *gin.Context) {
 	c.Data(http.StatusOK, "image/png", buf)
 }
 
-func NewHttpServer() *HttpServer {
-	srv := HttpServer{bots: map[string]context.Context{}, router: gin.Default()}
+// BasicAuthMiddleware создает middleware для базовой авторизации
+func BasicAuthMiddleware(username, password string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Если логин и пароль не установлены, пропускаем авторизацию
+		if username == "" || password == "" {
+			c.Next()
+			return
+		}
+
+		user, pass, hasAuth := c.Request.BasicAuth()
+		if !hasAuth || user != username || pass != password {
+			c.Header("WWW-Authenticate", "Basic realm=\"Authorization Required\"")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Next()
+	}
+}
+
+func NewHttpServer(webUsername, webPassword string) *HttpServer {
+	srv := HttpServer{bots: map[string]*Bot{}, router: gin.Default()}
 
 	// Настройка CORS middleware
 	srv.router.Use(cors.New(cors.Config{
@@ -144,6 +191,8 @@ func NewHttpServer() *HttpServer {
 
 	docs.SwaggerInfo.BasePath = "/api/v1"
 	v1 := srv.router.Group("/api/v1")
+	// Применяем BasicAuth middleware к API endpoints
+	v1.Use(BasicAuthMiddleware(webUsername, webPassword))
 	{
 		v1.GET("/bots", srv.ListBots)
 		v1.GET("/:id/html", srv.HTML)

@@ -2,8 +2,8 @@
 const API_BASE_URL = 'http://localhost:8080/api/v1';
 
 /**
- * Получить список ID запущенных ботов
- * @returns {Promise<string[]>}
+ * Получить список ботов с полной информацией
+ * @returns {Promise<Array<{id: string, room: string, botName: string, server: string, authMethod: string, lastUpdate: string}>>}
  */
 export const getBots = async () => {
   try {

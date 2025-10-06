@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/bots": {
             "get": {
-                "description": "get bots",
+                "description": "get bots with full information",
                 "consumes": [
                     "application/json"
                 ],
@@ -34,7 +34,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "string"
+                                "$ref": "#/definitions/ssjitsi.BotInfo"
                             }
                         }
                     },
@@ -114,6 +114,31 @@ const docTemplate = `{
                             "type": "file"
                         }
                     }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "ssjitsi.BotInfo": {
+            "type": "object",
+            "properties": {
+                "authMethod": {
+                    "type": "string"
+                },
+                "botName": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "lastUpdate": {
+                    "type": "string"
+                },
+                "room": {
+                    "type": "string"
+                },
+                "server": {
+                    "type": "string"
                 }
             }
         }

@@ -13,6 +13,8 @@ JitsiBot Server is a Go-based automation tool that manages multiple bots to join
 - 🔐 **Flexible authentication** - supports both username/password and JWT
 - 🌐 **Web interface** for real-time bot monitoring and screenshots
 - 🚀 **Multiple bot management** for simultaneous recordings
+- 🎨 **Multiple view modes** - cards and table layouts with persistent preferences
+- 🔒 **Optional BasicAuth** for web console security
 
 ## How It Works
 
@@ -128,6 +130,10 @@ For Jitsi Meet servers with JWT token authentication:
 ```yaml
 http: ":8080"
 
+# Optional: BasicAuth for web console
+# web_username: admin
+# web_password: secret123
+
 bots:
   - Room: "my-room"
     BotName: "JWT Bot"
@@ -149,6 +155,9 @@ bots:
 
 | Field | Required | Description |
 |-------|----------|-------------|
+| `http` | Yes | HTTP server listen address (e.g., ":8080") |
+| `web_username` | No | Username for web console BasicAuth |
+| `web_password` | No | Password for web console BasicAuth |
 | `Room` | Yes | Name of the conference room |
 | `BotName` | Yes | Display name for the bot |
 | `DataDir` | Yes | Directory to store recordings |
@@ -171,6 +180,8 @@ The server includes a built-in React web application for monitoring bot status:
 - 🔄 **Auto-refresh** (bots: 10s, screenshots: 30s)
 - 📱 **Responsive design** with Bootstrap
 - ⚡ **Error handling** and loading states
+- 🎨 **View modes** - switch between compact cards and detailed table view
+- 🔒 **Optional authentication** - protect access with BasicAuth
 
 ### Access
 After starting the server, open http://localhost:8080/ in your browser.
@@ -321,3 +332,7 @@ The bot will automatically:
 4. Join the conference without additional authentication prompts
 
 For more information on Jitsi JWT setup, see: https://jitsi.github.io/handbook/docs/devops-guide/secure-domain
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.

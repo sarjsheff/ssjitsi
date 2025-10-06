@@ -1,3 +1,19 @@
+definitions:
+  ssjitsi.BotInfo:
+    properties:
+      authMethod:
+        type: string
+      botName:
+        type: string
+      id:
+        type: string
+      lastUpdate:
+        type: string
+      room:
+        type: string
+      server:
+        type: string
+    type: object
 info:
   contact: {}
 paths:
@@ -47,7 +63,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: get bots
+      description: get bots with full information
       produces:
       - application/json
       responses:
@@ -55,7 +71,7 @@ paths:
           description: OK
           schema:
             items:
-              type: string
+              $ref: '#/definitions/ssjitsi.BotInfo'
             type: array
         "400":
           description: Bad Request

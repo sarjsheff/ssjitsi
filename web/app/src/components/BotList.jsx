@@ -1,19 +1,35 @@
 import BotCard from './BotCard';
-import LoadingSpinner from './LoadingSpinner';
+import BotTable from './BotTable';
 
 /**
  * Компонент списка ботов
  */
-const BotList = ({ 
-  bots, 
-  loading, 
-  error, 
-  onRefreshScreenshot 
+const BotList = ({
+  bots,
+  loading,
+  error,
+  onRefreshScreenshot,
+  viewMode = 'cards'
 }) => {
+  // Режим таблицы - используем компонент BotTable
+  if (viewMode === 'table') {
+    return (
+      <BotTable
+        bots={bots}
+        loading={loading}
+        error={error}
+        onRefreshScreenshot={onRefreshScreenshot}
+      />
+    );
+  }
+
+  // Режим карточек - используем компонент BotCard
   if (loading && bots.length === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center py-5">
-        <LoadingSpinner size="lg" text="Загрузка ботов..." />
+        <div className="spinner-border" role="status">
+          <span className="visually-hidden">Загрузка...</span>
+        </div>
       </div>
     );
   }
@@ -37,12 +53,19 @@ const BotList = ({
     );
   }
 
+  // Сортируем ботов по имени комнаты
+  const sortedBots = [...bots].sort((a, b) => {
+    const roomA = a.room || '';
+    const roomB = b.room || '';
+    return roomA.localeCompare(roomB, 'ru');
+  });
+
   return (
     <div className="row g-3">
-      {bots.map(bot => (
+      {sortedBots.map(bot => (
         <div key={bot.id} className="col-12 col-sm-6 col-md-4 col-lg-3">
-          <BotCard 
-            bot={bot} 
+          <BotCard
+            bot={bot}
             onRefreshScreenshot={onRefreshScreenshot}
           />
         </div>

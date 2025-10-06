@@ -31,14 +31,26 @@ func main() {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
-	// Создаем HTTP сервер
-	server := ssjitsi.NewHttpServer()
+	// Создаем HTTP сервер с авторизацией
+	server := ssjitsi.NewHttpServer(config.WebUsername, config.WebPassword)
 
-	// Создаем embedded сервер с встроенным UI
-	router := ssjitsi.NewEmbeddedServer(server)
+	// Создаем embedded сервер с встроенным UI и авторизацией
+	router := ssjitsi.NewEmbeddedServer(server, config.WebUsername, config.WebPassword)
+
+	// Запускаем HTTP сервер в отдельной горутине
+	log.Printf("Запуск HTTP сервера на %s", config.HTTP)
+	log.Printf("Web UI доступен по адресу http://localhost%s", config.HTTP)
+
+	go func() {
+		err := router.Run(config.HTTP)
+		if err != nil {
+			log.Fatalf("Ошибка запуска HTTP сервера: %v", err)
+		}
+	}()
 
 	// Создаем и запускаем ботов
-	for i, botConfig := range config.Bots {
+	for i := range config.Bots {
+		botConfig := &config.Bots[i]
 		// Генерируем уникальный ID для бота
 		botConfig.ID = uuid.New().String()
 
@@ -56,12 +68,6 @@ func main() {
 		log.Printf("Бот %d успешно запущен (ID: %s)", i+1, botConfig.ID)
 	}
 
-	log.Printf("Запуск embedded сервера на %s", config.HTTP)
-	log.Printf("Web UI доступен по адресу http://localhost%s", config.HTTP)
-
-	// Запускаем embedded сервер
-	err = router.Run(config.HTTP)
-	if err != nil {
-		log.Fatalf("Ошибка запуска сервера: %v", err)
-	}
+	// Ждем завершения (блокируем main)
+	select {}
 }

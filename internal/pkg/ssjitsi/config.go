@@ -8,8 +8,10 @@ import (
 
 // Config представляет основную конфигурацию приложения
 type Config struct {
-	HTTP string `yaml:"http"`
-	Bots []Bot  `yaml:"bots"`
+	HTTP        string `yaml:"http"`
+	WebUsername string `yaml:"web_username"` // Логин для доступа к веб-консоли
+	WebPassword string `yaml:"web_password"` // Пароль для доступа к веб-консоли
+	Bots        []Bot  `yaml:"bots"`
 }
 
 // LoadConfig загружает конфигурацию из файла

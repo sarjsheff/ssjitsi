@@ -14,25 +14,38 @@ export const useBots = () => {
   const loadBots = useCallback(async () => {
     try {
       setError(null);
-      const botIds = await getBots();
-      
+      const botInfos = await getBots();
+
       // Создаем или обновляем состояние ботов
       setBots(prevBots => {
-        const updatedBots = botIds.map(botId => {
-          const existingBot = prevBots.find(bot => bot.id === botId);
-          return existingBot || {
-            id: botId,
+        const updatedBots = botInfos.map(botInfo => {
+          const existingBot = prevBots.find(bot => bot.id === botInfo.id);
+          return existingBot ? {
+            ...existingBot,
+            room: botInfo.room,
+            botName: botInfo.botName,
+            server: botInfo.server,
+            authMethod: botInfo.authMethod,
+            lastUpdate: botInfo.lastUpdate
+          } : {
+            id: botInfo.id,
+            room: botInfo.room,
+            botName: botInfo.botName,
+            server: botInfo.server,
+            authMethod: botInfo.authMethod,
+            lastUpdate: botInfo.lastUpdate,
             screenshot: null,
             loadingScreenshot: false,
             screenshotError: null,
             lastScreenshotUpdate: null
           };
         });
-        
+
         // Удаляем ботов, которых больше нет в списке
-        return updatedBots.filter(bot => botIds.includes(bot.id));
+        const currentBotIds = botInfos.map(b => b.id);
+        return updatedBots.filter(bot => currentBotIds.includes(bot.id));
       });
-      
+
       setLastUpdate(new Date());
     } catch (err) {
       setError(`Ошибка загрузки ботов: ${err.message}`);

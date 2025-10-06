@@ -12,11 +12,16 @@ import (
 var embeddedFiles embed.FS
 
 // NewEmbeddedServer создает HTTP сервер с встроенным UI
-func NewEmbeddedServer(server *HttpServer) *gin.Engine {
+func NewEmbeddedServer(server *HttpServer, webUsername, webPassword string) *gin.Engine {
 	router := gin.Default()
 
 	// Настройка CORS
 	router.Use(corsMiddleware())
+
+	// Применяем BasicAuth ко всему приложению (если указаны credentials)
+	if webUsername != "" && webPassword != "" {
+		router.Use(BasicAuthMiddleware(webUsername, webPassword))
+	}
 
 	// API маршруты
 	api := router.Group("/api/v1")

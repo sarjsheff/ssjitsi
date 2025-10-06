@@ -21,6 +21,10 @@ function App() {
 
   const [serverStatus, setServerStatus] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [viewMode, setViewMode] = useState(() => {
+    // Загружаем сохраненный режим из localStorage
+    return localStorage.getItem('viewMode') || 'cards';
+  });
 
   // Проверка статуса сервера
   useEffect(() => {
@@ -55,12 +59,18 @@ function App() {
     return new Date(lastUpdate).toLocaleTimeString('ru-RU');
   };
 
+  // Переключение режима отображения
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+    localStorage.setItem('viewMode', mode);
+  };
+
   return (
-    <div className="container-fluid py-3">
+    <div className="container-fluid py-2">
       {/* Шапка приложения */}
-      <div className="row mb-4">
+      <div className="row mb-2">
         <div className="col-12">
-          <div className="d-flex justify-content-between align-items-center mb-3">
+          <div className="d-flex justify-content-between align-items-center mb-2">
             <div>
               <h1 className="h3 mb-1">
                 <i className="bi bi-robot me-2"></i>
@@ -74,14 +84,34 @@ function App() {
             <div className="d-flex align-items-center gap-3">
               {/* Статус сервера */}
               <div className="d-flex align-items-center">
-                <div 
+                <div
                   className={`badge ${serverStatus === true ? 'bg-success' : serverStatus === false ? 'bg-danger' : 'bg-secondary'} me-2`}
                   style={{ width: '10px', height: '10px', borderRadius: '50%' }}
                 ></div>
                 <small className="text-muted">
-                  {serverStatus === true ? 'Сервер доступен' : 
+                  {serverStatus === true ? 'Сервер доступен' :
                    serverStatus === false ? 'Сервер недоступен' : 'Проверка...'}
                 </small>
+              </div>
+
+              {/* Переключение вида */}
+              <div className="btn-group" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${viewMode === 'cards' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                  onClick={() => handleViewModeChange('cards')}
+                  title="Показать карточками"
+                >
+                  <i className="bi bi-grid-3x3-gap"></i>
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${viewMode === 'table' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                  onClick={() => handleViewModeChange('table')}
+                  title="Показать таблицей"
+                >
+                  <i className="bi bi-list-ul"></i>
+                </button>
               </div>
 
               {/* Кнопка обновления */}
@@ -134,27 +164,13 @@ function App() {
       {/* Основной контент - список ботов */}
       <div className="row">
         <div className="col-12">
-          <BotList 
+          <BotList
             bots={bots}
             loading={loading}
             error={error}
             onRefreshScreenshot={handleRefreshScreenshot}
+            viewMode={viewMode}
           />
-        </div>
-      </div>
-
-      {/* Футер с информацией */}
-      <div className="row mt-5">
-        <div className="col-12">
-          <div className="text-center text-muted small">
-            <hr />
-            <p className="mb-1">
-              Система мониторинга ботов Jitsi &copy; {new Date().getFullYear()}
-            </p>
-            <p className="mb-0">
-              Автоматическое обновление данных и скриншотов в реальном времени
-            </p>
-          </div>
         </div>
       </div>
     </div>
