@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getBots, getScreenshot } from '../services/api';
+import { getBots, getScreenshot, stopBot as stopBotAPI, restartBot as restartBotAPI } from '../services/api';
 
 /**
  * Кастомный хук для управления состоянием ботов
@@ -26,6 +26,7 @@ export const useBots = () => {
             botName: botInfo.botName,
             server: botInfo.server,
             authMethod: botInfo.authMethod,
+            status: botInfo.status || 'unknown',
             lastUpdate: botInfo.lastUpdate
           } : {
             id: botInfo.id,
@@ -33,6 +34,7 @@ export const useBots = () => {
             botName: botInfo.botName,
             server: botInfo.server,
             authMethod: botInfo.authMethod,
+            status: botInfo.status || 'unknown',
             lastUpdate: botInfo.lastUpdate,
             screenshot: null,
             loadingScreenshot: false,
@@ -129,6 +131,30 @@ export const useBots = () => {
     }
   }, [bots.length, loadAllScreenshots]);
 
+  // Функция для остановки бота
+  const stopBot = useCallback(async (botId) => {
+    try {
+      await stopBotAPI(botId);
+      // Обновляем данные ботов после остановки
+      await loadBots();
+    } catch (err) {
+      console.error(`Ошибка при остановке бота ${botId}:`, err);
+      throw err;
+    }
+  }, [loadBots]);
+
+  // Функция для перезапуска бота
+  const restartBot = useCallback(async (botId) => {
+    try {
+      await restartBotAPI(botId);
+      // Обновляем данные ботов после перезапуска
+      await loadBots();
+    } catch (err) {
+      console.error(`Ошибка при перезапуске бота ${botId}:`, err);
+      throw err;
+    }
+  }, [loadBots]);
+
   return {
     bots,
     loading,
@@ -136,6 +162,8 @@ export const useBots = () => {
     lastUpdate,
     refreshAll,
     loadScreenshot,
-    loadAllScreenshots
+    loadAllScreenshots,
+    stopBot,
+    restartBot
   };
 };

@@ -1,12 +1,68 @@
+import { useState } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
  * Компонент карточки бота
  */
-const BotCard = ({ 
-  bot, 
-  onRefreshScreenshot 
+const BotCard = ({
+  bot,
+  onRefreshScreenshot,
+  onStopBot,
+  onRestartBot
 }) => {
+  const [actionInProgress, setActionInProgress] = useState(false);
+
+  const handleStop = async () => {
+    setActionInProgress(true);
+    try {
+      await onStopBot(bot.id);
+    } catch (error) {
+      console.error('Ошибка остановки бота:', error);
+    } finally {
+      setActionInProgress(false);
+    }
+  };
+
+  const handleRestart = async () => {
+    setActionInProgress(true);
+    try {
+      await onRestartBot(bot.id);
+    } catch (error) {
+      console.error('Ошибка перезапуска бота:', error);
+    } finally {
+      setActionInProgress(false);
+    }
+  };
+
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'running':
+        return 'bg-success';
+      case 'stopped':
+        return 'bg-secondary';
+      case 'starting':
+        return 'bg-warning';
+      case 'stopping':
+        return 'bg-warning';
+      default:
+        return 'bg-secondary';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'running':
+        return 'Работает';
+      case 'stopped':
+        return 'Остановлен';
+      case 'starting':
+        return 'Запускается';
+      case 'stopping':
+        return 'Останавливается';
+      default:
+        return 'Неизвестно';
+    }
+  };
   const formatTime = (date) => {
     if (!date) return 'Никогда';
     return new Date(date).toLocaleTimeString('ru-RU');
@@ -20,19 +76,42 @@ const BotCard = ({
   return (
     <div className="card h-100 shadow-sm">
       {/* Заголовок карточки */}
-      <div className="card-header bg-light">
-        <div className="d-flex justify-content-between align-items-center">
+      <div className="card-header bg-light p-2">
+        <div className="d-flex justify-content-between align-items-center mb-1">
           <h6 className="card-title mb-0 text-truncate" title={`${bot.room} | ${bot.botName}`}>
             {bot.room} | {bot.botName}
           </h6>
-          <button
-            className="btn btn-sm btn-outline-primary"
-            onClick={() => onRefreshScreenshot(bot.id)}
-            disabled={bot.loadingScreenshot}
-            title="Обновить скриншот"
-          >
-            <i className="bi bi-arrow-clockwise"></i>
-          </button>
+        </div>
+        <div className="d-flex justify-content-between align-items-center">
+          <span className={`badge ${getStatusBadgeClass(bot.status)}`}>
+            {getStatusText(bot.status)}
+          </span>
+          <div className="btn-group btn-group-sm" role="group">
+            <button
+              className="btn btn-outline-success"
+              onClick={handleRestart}
+              disabled={actionInProgress || bot.status === 'starting' || bot.status === 'stopping'}
+              title="Перезапустить"
+            >
+              <i className="bi bi-arrow-repeat"></i>
+            </button>
+            <button
+              className="btn btn-outline-danger"
+              onClick={handleStop}
+              disabled={actionInProgress || bot.status === 'stopped' || bot.status === 'stopping'}
+              title="Остановить"
+            >
+              <i className="bi bi-stop-circle"></i>
+            </button>
+            <button
+              className="btn btn-outline-primary"
+              onClick={() => onRefreshScreenshot(bot.id)}
+              disabled={bot.loadingScreenshot}
+              title="Обновить скриншот"
+            >
+              <i className="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
         </div>
       </div>
 

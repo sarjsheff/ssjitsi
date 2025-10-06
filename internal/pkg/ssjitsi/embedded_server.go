@@ -28,6 +28,8 @@ func NewEmbeddedServer(server *HttpServer, webUsername, webPassword string) *gin
 	{
 		api.GET("/bots", server.ListBots)
 		api.GET("/:id/screenshot", server.Screenshot)
+		api.POST("/:id/stop", server.StopBot)
+		api.POST("/:id/restart", server.RestartBot)
 	}
 
 	// Обработка всех запросов

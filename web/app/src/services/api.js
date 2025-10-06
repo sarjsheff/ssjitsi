@@ -56,6 +56,46 @@ export const getBotHtml = async (botId) => {
 };
 
 /**
+ * Остановить бота
+ * @param {string} botId - ID бота
+ * @returns {Promise<object>}
+ */
+export const stopBot = async (botId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/${botId}/stop`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Ошибка при остановке бота ${botId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Перезапустить бота
+ * @param {string} botId - ID бота
+ * @returns {Promise<object>}
+ */
+export const restartBot = async (botId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/${botId}/restart`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error(`Ошибка при перезапуске бота ${botId}:`, error);
+    throw error;
+  }
+};
+
+/**
  * Проверить доступность сервера
  * @returns {Promise<boolean>}
  */

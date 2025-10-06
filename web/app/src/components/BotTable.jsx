@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import LoadingSpinner from './LoadingSpinner';
 
 /**
@@ -7,11 +8,66 @@ const BotTable = ({
   bots,
   loading,
   error,
-  onRefreshScreenshot
+  onRefreshScreenshot,
+  onStopBot,
+  onRestartBot
 }) => {
+  const [actionInProgress, setActionInProgress] = useState({});
   const formatTime = (date) => {
     if (!date) return 'Никогда';
     return new Date(date).toLocaleTimeString('ru-RU');
+  };
+
+  const handleStop = async (botId) => {
+    setActionInProgress(prev => ({ ...prev, [botId]: true }));
+    try {
+      await onStopBot(botId);
+    } catch (error) {
+      console.error('Ошибка остановки бота:', error);
+    } finally {
+      setActionInProgress(prev => ({ ...prev, [botId]: false }));
+    }
+  };
+
+  const handleRestart = async (botId) => {
+    setActionInProgress(prev => ({ ...prev, [botId]: true }));
+    try {
+      await onRestartBot(botId);
+    } catch (error) {
+      console.error('Ошибка перезапуска бота:', error);
+    } finally {
+      setActionInProgress(prev => ({ ...prev, [botId]: false }));
+    }
+  };
+
+  const getStatusBadgeClass = (status) => {
+    switch (status) {
+      case 'running':
+        return 'bg-success';
+      case 'stopped':
+        return 'bg-secondary';
+      case 'starting':
+        return 'bg-warning';
+      case 'stopping':
+        return 'bg-warning';
+      default:
+        return 'bg-secondary';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'running':
+        return 'Работает';
+      case 'stopped':
+        return 'Остановлен';
+      case 'starting':
+        return 'Запускается';
+      case 'stopping':
+        return 'Останавливается';
+      default:
+        return 'Неизвестно';
+    }
   };
 
   if (loading && bots.length === 0) {
@@ -112,25 +168,37 @@ const BotTable = ({
                 </small>
               </td>
               <td>
-                <div className="d-flex align-items-center">
-                  <div
-                    className={`badge ${bot.screenshot ? 'bg-success' : 'bg-secondary'} me-1`}
-                    style={{ width: '8px', height: '8px', borderRadius: '50%' }}
-                  ></div>
-                  <small className="text-nowrap">
-                    {bot.screenshot ? 'Активен' : 'Неактивен'}
-                  </small>
-                </div>
+                <span className={`badge ${getStatusBadgeClass(bot.status)}`}>
+                  {getStatusText(bot.status)}
+                </span>
               </td>
               <td>
-                <button
-                  className="btn btn-sm btn-outline-primary"
-                  onClick={() => onRefreshScreenshot(bot.id)}
-                  disabled={bot.loadingScreenshot}
-                  title="Обновить скриншот"
-                >
-                  <i className="bi bi-arrow-clockwise"></i>
-                </button>
+                <div className="btn-group btn-group-sm" role="group">
+                  <button
+                    className="btn btn-outline-success"
+                    onClick={() => handleRestart(bot.id)}
+                    disabled={actionInProgress[bot.id] || bot.status === 'starting' || bot.status === 'stopping'}
+                    title="Перезапустить"
+                  >
+                    <i className="bi bi-arrow-repeat"></i>
+                  </button>
+                  <button
+                    className="btn btn-outline-danger"
+                    onClick={() => handleStop(bot.id)}
+                    disabled={actionInProgress[bot.id] || bot.status === 'stopped' || bot.status === 'stopping'}
+                    title="Остановить"
+                  >
+                    <i className="bi bi-stop-circle"></i>
+                  </button>
+                  <button
+                    className="btn btn-outline-primary"
+                    onClick={() => onRefreshScreenshot(bot.id)}
+                    disabled={bot.loadingScreenshot}
+                    title="Обновить скриншот"
+                  >
+                    <i className="bi bi-arrow-clockwise"></i>
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

@@ -15,6 +15,7 @@ JitsiBot Server is a Go-based automation tool that manages multiple bots to join
 - 🚀 **Multiple bot management** for simultaneous recordings
 - 🎨 **Multiple view modes** - cards and table layouts with persistent preferences
 - 🔒 **Optional BasicAuth** for web console security
+- ⚡ **Bot lifecycle control** - stop and restart bots via web interface
 
 ## How It Works
 
@@ -182,6 +183,8 @@ The server includes a built-in React web application for monitoring bot status:
 - ⚡ **Error handling** and loading states
 - 🎨 **View modes** - switch between compact cards and detailed table view
 - 🔒 **Optional authentication** - protect access with BasicAuth
+- 🎮 **Bot control** - stop, restart, and refresh screenshots for individual bots
+- 🚦 **Status indicators** - running (green), stopped (gray), starting/stopping (yellow)
 
 ### Access
 After starting the server, open http://localhost:8080/ in your browser.

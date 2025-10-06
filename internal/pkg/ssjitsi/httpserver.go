@@ -3,6 +3,7 @@ package ssjitsi
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ type BotInfo struct {
 	BotName    string    `json:"botName"`
 	Server     string    `json:"server"`
 	AuthMethod string    `json:"authMethod"`
+	Status     string    `json:"status"` // Статус бота: running, stopped, starting, stopping
 	LastUpdate time.Time `json:"lastUpdate"`
 }
 
@@ -78,6 +80,7 @@ func (h *HttpServer) ListBots(c *gin.Context) {
 			BotName:    bot.BotName,
 			Server:     bot.JitsiServer,
 			AuthMethod: getAuthMethod(bot),
+			Status:     bot.GetStatus(),
 			LastUpdate: time.Now(),
 		})
 	}
@@ -146,15 +149,112 @@ func (h *HttpServer) Screenshot(c *gin.Context) {
 		return
 	}
 
+	// Проверяем статус бота
+	status := bot.GetStatus()
+	if status != "running" {
+		log.Printf("Попытка сделать скриншот бота %s в статусе %s", id, status)
+		newError(c, http.StatusServiceUnavailable, fmt.Errorf("bot is not running (status: %s)", status))
+		return
+	}
+
 	var buf []byte
 	err := chromedp.Run(bot.Ctx,
 		chromedp.FullScreenshot(&buf, 100),
 	)
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("Ошибка создания скриншота для бота %s: %v", id, err)
+		newError(c, http.StatusInternalServerError, fmt.Errorf("failed to capture screenshot: %v", err))
+		return
 	}
 
 	c.Data(http.StatusOK, "image/png", buf)
+}
+
+// StopBot godoc
+// @Summary      Stop bot
+// @Description  stop a bot by ID
+// @Tags         bot
+// @Accept       json
+// @Produce      json
+// @Param        id   path      string  true  "Bot ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  error
+// @Failure      404  {object}  error
+// @Failure      500  {object}  error
+// @Router       /:id/stop [post]
+func (h *HttpServer) StopBot(c *gin.Context) {
+	id := c.Param("id")
+	log.Printf("Получен запрос на остановку бота с ID: %s", id)
+
+	if id == "" {
+		newError(c, http.StatusBadRequest, errors.New("id required"))
+		return
+	}
+	bot, ok := h.bots[id]
+	if !ok {
+		log.Printf("Бот с ID %s не найден", id)
+		newError(c, http.StatusNotFound, errors.New("bot not found"))
+		return
+	}
+
+	log.Printf("Остановка бота %s (%s), текущий статус: %s", bot.BotName, id, bot.GetStatus())
+	err := bot.Stop()
+	if err != nil {
+		log.Printf("Ошибка остановки бота %s: %v", id, err)
+		newError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	log.Printf("Бот %s успешно остановлен, новый статус: %s", id, bot.GetStatus())
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Bot stopped successfully",
+		"status":  bot.GetStatus(),
+	})
+}
+
+// RestartBot godoc
+// @Summary      Restart bot
+// @Description  restart a bot by ID
+// @Tags         bot
+// @Accept       json
+// @Produce      json
+// @Param        id   path      string  true  "Bot ID"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  error
+// @Failure      404  {object}  error
+// @Failure      500  {object}  error
+// @Router       /:id/restart [post]
+func (h *HttpServer) RestartBot(c *gin.Context) {
+	id := c.Param("id")
+	log.Printf("Получен запрос на перезапуск бота с ID: %s", id)
+
+	if id == "" {
+		newError(c, http.StatusBadRequest, errors.New("id required"))
+		return
+	}
+	bot, ok := h.bots[id]
+	if !ok {
+		log.Printf("Бот с ID %s не найден", id)
+		newError(c, http.StatusNotFound, errors.New("bot not found"))
+		return
+	}
+
+	log.Printf("Перезапуск бота %s (%s), текущий статус: %s", bot.BotName, id, bot.GetStatus())
+
+	// Запускаем перезапуск в горутине, чтобы не блокировать HTTP ответ
+	go func() {
+		err := bot.Restart()
+		if err != nil {
+			log.Printf("Ошибка перезапуска бота %s: %v", id, err)
+		}
+	}()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Bot restart initiated",
+		"status":  bot.GetStatus(),
+	})
 }
 
 // BasicAuthMiddleware создает middleware для базовой авторизации
@@ -197,6 +297,8 @@ func NewHttpServer(webUsername, webPassword string) *HttpServer {
 		v1.GET("/bots", srv.ListBots)
 		v1.GET("/:id/html", srv.HTML)
 		v1.GET("/:id/screenshot", srv.Screenshot)
+		v1.POST("/:id/stop", srv.StopBot)
+		v1.POST("/:id/restart", srv.RestartBot)
 	}
 	srv.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 

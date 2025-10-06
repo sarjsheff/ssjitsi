@@ -16,7 +16,9 @@ function App() {
     lastUpdate,
     refreshAll,
     loadScreenshot,
-    loadAllScreenshots
+    loadAllScreenshots,
+    stopBot,
+    restartBot
   } = useBots();
 
   const [serverStatus, setServerStatus] = useState(null);
@@ -169,6 +171,8 @@ function App() {
             loading={loading}
             error={error}
             onRefreshScreenshot={handleRefreshScreenshot}
+            onStopBot={stopBot}
+            onRestartBot={restartBot}
             viewMode={viewMode}
           />
         </div>

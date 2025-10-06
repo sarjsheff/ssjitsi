@@ -9,6 +9,8 @@ const BotList = ({
   loading,
   error,
   onRefreshScreenshot,
+  onStopBot,
+  onRestartBot,
   viewMode = 'cards'
 }) => {
   // Режим таблицы - используем компонент BotTable
@@ -19,6 +21,8 @@ const BotList = ({
         loading={loading}
         error={error}
         onRefreshScreenshot={onRefreshScreenshot}
+        onStopBot={onStopBot}
+        onRestartBot={onRestartBot}
       />
     );
   }
@@ -67,6 +71,8 @@ const BotList = ({
           <BotCard
             bot={bot}
             onRefreshScreenshot={onRefreshScreenshot}
+            onStopBot={onStopBot}
+            onRestartBot={onRestartBot}
           />
         </div>
       ))}

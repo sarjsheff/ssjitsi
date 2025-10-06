@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chromedp/cdproto/browser"
@@ -21,18 +22,21 @@ import (
 )
 
 type Bot struct {
-	ID           string             `yaml:"ID,omitempty"`
-	Room         string             `yaml:"Room"`
-	BotName      string             `yaml:"BotName"`
-	DataDir      string             `yaml:"DataDir"`
-	JitsiServer  string             `yaml:"JitsiServer"`
-	Username     string             `yaml:"Username"`
-	Pass         string             `yaml:"Pass"`
-	JWTAppID     string             `yaml:"JWTAppID"`
-	JWTAppSecret string             `yaml:"JWTAppSecret"`
-	Headless     bool               `yaml:"Headless"`
-	Ctx          context.Context    `yaml:"-"`
-	CtxCancel    context.CancelFunc `yaml:"-"`
+	ID            string             `yaml:"ID,omitempty"`
+	Room          string             `yaml:"Room"`
+	BotName       string             `yaml:"BotName"`
+	DataDir       string             `yaml:"DataDir"`
+	JitsiServer   string             `yaml:"JitsiServer"`
+	Username      string             `yaml:"Username"`
+	Pass          string             `yaml:"Pass"`
+	JWTAppID      string             `yaml:"JWTAppID"`
+	JWTAppSecret  string             `yaml:"JWTAppSecret"`
+	Headless      bool               `yaml:"Headless"`
+	Ctx           context.Context    `yaml:"-"`
+	CtxCancel     context.CancelFunc `yaml:"-"`
+	AllocCancel   context.CancelFunc `yaml:"-"` // Cancel для allocator контекста
+	Status        string             `yaml:"-"` // Статус бота: "running", "stopped", "starting", "stopping"
+	mu            sync.RWMutex       `yaml:"-"` // Mutex для потокобезопасности
 }
 type Record struct {
 	U      string `json:"u"`
@@ -80,27 +84,45 @@ func GenerateJitsiJWT(appID, appSecret, jitsiServer, room, userName string) (str
 	return tokenString, nil
 }
 
+// GetStatus возвращает текущий статус бота (потокобезопасно)
+func (bot *Bot) GetStatus() string {
+	bot.mu.RLock()
+	defer bot.mu.RUnlock()
+	return bot.Status
+}
+
+// SetStatus устанавливает статус бота (потокобезопасно)
+func (bot *Bot) SetStatus(status string) {
+	bot.mu.Lock()
+	defer bot.mu.Unlock()
+	bot.Status = status
+}
+
 func (bot *Bot) Start() error {
-	ctx, _ := chromedp.NewContext(context.Background())
-	// defer cancel()
+	bot.SetStatus("starting")
+
+	ctx, baseCancel := chromedp.NewContext(context.Background())
 
 	jsContent, err := os.ReadFile("script.js")
 	if err != nil {
 		fmt.Println(err)
+		bot.SetStatus("stopped")
 		return err
 	}
 
-	allocCtx, _ := chromedp.NewExecAllocator(
+	allocCtx, allocCancel := chromedp.NewExecAllocator(
 		ctx,
 		append(chromedp.DefaultExecAllocatorOptions[:],
 			chromedp.Flag("use-fake-ui-for-media-stream", true),
 			chromedp.Flag("headless", bot.Headless),
 		)...,
 	)
-	// defer cancelAlloc()
 
 	bot.Ctx, bot.CtxCancel = chromedp.NewContext(allocCtx)
-	// defer cancelTask()
+	bot.AllocCancel = func() {
+		baseCancel()
+		allocCancel()
+	}
 
 	chromedp.ListenTarget(bot.Ctx, func(ev interface{}) {
 		switch ev := ev.(type) {
@@ -216,7 +238,71 @@ func (bot *Bot) Start() error {
 		chromedp.Evaluate(string(jsContent), &res),
 	)
 
-	return err
+	if err != nil {
+		bot.SetStatus("stopped")
+		return err
+	}
+
+	bot.SetStatus("running")
+	log.Printf("Бот %s (%s) запущен и работает", bot.BotName, bot.ID)
+
+	// Блокируемся, пока контекст не будет отменен
+	<-bot.Ctx.Done()
+
+	bot.SetStatus("stopped")
+	log.Printf("Бот %s (%s) завершил работу", bot.BotName, bot.ID)
+	return nil
+}
+
+// Stop останавливает бота
+func (bot *Bot) Stop() error {
+	currentStatus := bot.GetStatus()
+	log.Printf("Stop() вызван для бота %s (%s), текущий статус: %s", bot.BotName, bot.ID, currentStatus)
+
+	bot.SetStatus("stopping")
+
+	bot.mu.Lock()
+	if bot.CtxCancel != nil {
+		log.Printf("Отменяем CtxCancel для бота %s", bot.ID)
+		bot.CtxCancel()
+		bot.CtxCancel = nil
+	}
+	if bot.AllocCancel != nil {
+		log.Printf("Отменяем AllocCancel для бота %s", bot.ID)
+		bot.AllocCancel()
+		bot.AllocCancel = nil
+	}
+	bot.Ctx = nil
+	bot.mu.Unlock()
+
+	bot.SetStatus("stopped")
+	log.Printf("Бот %s (%s) остановлен, новый статус: %s", bot.BotName, bot.ID, bot.GetStatus())
+	return nil
+}
+
+// Restart перезапускает бота
+func (bot *Bot) Restart() error {
+	log.Printf("Перезапуск бота %s (%s)", bot.BotName, bot.ID)
+
+	// Остановка бота
+	err := bot.Stop()
+	if err != nil {
+		return fmt.Errorf("ошибка при остановке бота: %v", err)
+	}
+
+	// Небольшая пауза перед перезапуском
+	time.Sleep(2 * time.Second)
+
+	// Запуск бота в горутине
+	go func() {
+		err := bot.Start()
+		if err != nil {
+			log.Printf("Ошибка при запуске бота %s (%s): %v", bot.BotName, bot.ID, err)
+		}
+	}()
+
+	log.Printf("Бот %s (%s) перезапускается...", bot.BotName, bot.ID)
+	return nil
 }
 
 func wrf(f string, d []byte) error {

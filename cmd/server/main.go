@@ -54,18 +54,23 @@ func main() {
 		// Генерируем уникальный ID для бота
 		botConfig.ID = uuid.New().String()
 
+		// Устанавливаем начальный статус
+		botConfig.SetStatus("stopped")
+
 		log.Printf("Запуск бота %d: комната '%s', имя '%s'", i+1, botConfig.Room, botConfig.BotName)
 
-		// Запускаем бота
-		err := botConfig.Start()
-		if err != nil {
-			log.Printf("Ошибка запуска бота %d: %v", i+1, err)
-			continue
-		}
-
-		// Добавляем бота в сервер
+		// Добавляем бота в сервер сразу
 		server.AddBot(botConfig)
-		log.Printf("Бот %d успешно запущен (ID: %s)", i+1, botConfig.ID)
+
+		// Запускаем бота в горутине
+		go func(bot *ssjitsi.Bot, index int) {
+			err := bot.Start()
+			if err != nil {
+				log.Printf("Ошибка работы бота %d: %v", index+1, err)
+			}
+		}(botConfig, i)
+
+		log.Printf("Бот %d запускается (ID: %s)", i+1, botConfig.ID)
 	}
 
 	// Ждем завершения (блокируем main)
