@@ -6,28 +6,33 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type Bot struct {
-	ID          string             `yaml:"ID,omitempty"`
-	Room        string             `yaml:"Room"`
-	BotName     string             `yaml:"BotName"`
-	DataDir     string             `yaml:"DataDir"`
-	JitsiServer string             `yaml:"JitsiServer"`
-	Username    string             `yaml:"Username"`
-	Pass        string             `yaml:"Pass"`
-	Headless    bool               `yaml:"Headless"`
-	Ctx         context.Context    `yaml:"-"`
-	CtxCancel   context.CancelFunc `yaml:"-"`
+	ID           string             `yaml:"ID,omitempty"`
+	Room         string             `yaml:"Room"`
+	BotName      string             `yaml:"BotName"`
+	DataDir      string             `yaml:"DataDir"`
+	JitsiServer  string             `yaml:"JitsiServer"`
+	Username     string             `yaml:"Username"`
+	Pass         string             `yaml:"Pass"`
+	JWTAppID     string             `yaml:"JWTAppID"`
+	JWTAppSecret string             `yaml:"JWTAppSecret"`
+	Headless     bool               `yaml:"Headless"`
+	Ctx          context.Context    `yaml:"-"`
+	CtxCancel    context.CancelFunc `yaml:"-"`
 }
 type Record struct {
 	U      string `json:"u"`
@@ -36,6 +41,43 @@ type Record struct {
 	UserId string `json:"userid"`
 	Room   string `json:"room"`
 	Myid   string `json:"myid"`
+}
+
+// GenerateJitsiJWT генерирует JWT токен для авторизации в Jitsi Meet
+func GenerateJitsiJWT(appID, appSecret, jitsiServer, room, userName string) (string, error) {
+	// Извлекаем домен из URL сервера Jitsi
+	parsedURL, err := url.Parse(jitsiServer)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse Jitsi server URL: %v", err)
+	}
+	domain := parsedURL.Hostname()
+
+	// Создаем claims для токена
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"iss":  appID,                         // Issuer - идентификатор приложения
+		"aud":  appID,                         // Audience - идентификатор приложения
+		"sub":  domain,                        // Subject - домен Jitsi сервера
+		"room": room,                          // Имя комнаты
+		"exp":  now.Add(2 * time.Hour).Unix(), // Expiration - токен действителен 2 часа
+		"nbf":  now.Unix(),                    // Not Before - токен действителен с текущего момента
+		"context": map[string]interface{}{
+			"user": map[string]interface{}{
+				"name": userName,
+			},
+		},
+	}
+
+	// Создаем токен с алгоритмом HS256
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Подписываем токен секретным ключом
+	tokenString, err := token.SignedString([]byte(appSecret))
+	if err != nil {
+		return "", fmt.Errorf("failed to sign JWT token: %v", err)
+	}
+
+	return tokenString, nil
 }
 
 func (bot *Bot) Start() error {
@@ -100,38 +142,72 @@ func (bot *Bot) Start() error {
 	// run task list
 	var res string
 	// var buf []byte
-	var nodes []*cdp.Node
-	err = chromedp.Run(bot.Ctx,
-		chromedp.Navigate(bot.JitsiServer),
-		chromedp.Click(`[aria-label="Meeting name input"]`, chromedp.ByQuery),
-		chromedp.SendKeys(`[aria-label="Meeting name input"]`, bot.Room, chromedp.ByQuery),
-		chromedp.Click("#enter_room_button", chromedp.ByQuery),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			// Параметры: разрешение, настройка, источник (опционально)
-			return params.Do(ctx)
-		}),
-		chromedp.Sleep(1*time.Second),
-		chromedp.SendKeys(`[aria-label="Enter your name"]`, bot.BotName, chromedp.ByQuery),
-		chromedp.Click(`[aria-label="Join meeting"]`, chromedp.ByQuery),
-		chromedp.Click(`[aria-label="Join meeting"]`, chromedp.ByQuery),
-		chromedp.Sleep(2*time.Second),
-		chromedp.Nodes("#login-dialog-username", &nodes, chromedp.AtLeast(0)),
-	)
-	if err != nil {
-		return err
-	}
 
-	// Нужна авторизация?
-	if len(nodes) > 0 {
-		log.Println("Авторизуемся.")
+	// Проверяем, нужна ли JWT авторизация
+	if bot.JWTAppID != "" && bot.JWTAppSecret != "" {
+		// Используем JWT авторизацию
+		log.Println("Используем JWT авторизацию")
+
+		// Генерируем JWT токен
+		token, err := GenerateJitsiJWT(bot.JWTAppID, bot.JWTAppSecret, bot.JitsiServer, bot.Room, bot.BotName)
+		if err != nil {
+			return fmt.Errorf("failed to generate JWT token: %v", err)
+		}
+
+		// Формируем URL с JWT токеном
+		jitsiURL := strings.TrimRight(bot.JitsiServer, "/") + "/" + bot.Room + "?jwt=" + token
+		log.Printf("Переходим на URL: %s", strings.TrimRight(bot.JitsiServer, "/")+"/"+bot.Room+"?jwt=***")
+
 		err = chromedp.Run(bot.Ctx,
-			chromedp.SendKeys("#login-dialog-username", bot.Username, chromedp.ByQuery),
-			chromedp.SendKeys("#login-dialog-password", bot.Pass, chromedp.ByQuery),
-			chromedp.Click(`[aria-label="Login"]`, chromedp.ByQuery),
-			chromedp.Sleep(1*time.Second),
+			chromedp.Navigate(jitsiURL),
+			chromedp.ActionFunc(func(ctx context.Context) error {
+				// Параметры: разрешение, настройка, источник (опционально)
+				return params.Do(ctx)
+			}),
+			chromedp.Sleep(2*time.Second), // Даем время на загрузку страницы
+			chromedp.Click(`[aria-label="Join meeting"]`, chromedp.ByQuery),
+			chromedp.Sleep(2*time.Second), // Даем время на подключение к конференции
 		)
 		if err != nil {
 			return err
+		}
+	} else {
+		// Используем старый метод с формами
+		log.Println("Используем авторизацию с формами")
+
+		var nodes []*cdp.Node
+		err = chromedp.Run(bot.Ctx,
+			chromedp.Navigate(bot.JitsiServer),
+			chromedp.Click(`[aria-label="Meeting name input"]`, chromedp.ByQuery),
+			chromedp.SendKeys(`[aria-label="Meeting name input"]`, bot.Room, chromedp.ByQuery),
+			chromedp.Click("#enter_room_button", chromedp.ByQuery),
+			chromedp.ActionFunc(func(ctx context.Context) error {
+				// Параметры: разрешение, настройка, источник (опционально)
+				return params.Do(ctx)
+			}),
+			chromedp.Sleep(1*time.Second),
+			chromedp.SendKeys(`[aria-label="Enter your name"]`, bot.BotName, chromedp.ByQuery),
+			chromedp.Click(`[aria-label="Join meeting"]`, chromedp.ByQuery),
+			chromedp.Click(`[aria-label="Join meeting"]`, chromedp.ByQuery),
+			chromedp.Sleep(2*time.Second),
+			chromedp.Nodes("#login-dialog-username", &nodes, chromedp.AtLeast(0)),
+		)
+		if err != nil {
+			return err
+		}
+
+		// Нужна авторизация?
+		if len(nodes) > 0 {
+			log.Println("Авторизуемся.")
+			err = chromedp.Run(bot.Ctx,
+				chromedp.SendKeys("#login-dialog-username", bot.Username, chromedp.ByQuery),
+				chromedp.SendKeys("#login-dialog-password", bot.Pass, chromedp.ByQuery),
+				chromedp.Click(`[aria-label="Login"]`, chromedp.ByQuery),
+				chromedp.Sleep(1*time.Second),
+			)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

@@ -42,7 +42,11 @@ class StatusInfo extends HTMLElement {
 
     refresh() {
         setTimeout(() => {
-            this.body.innerHTML = `<div>${window.APP.connection.getJid()}</div>`;
+            if (window.APP && window.APP.connection && window.APP.connection.getJid) {
+                this.body.innerHTML = `<div>${window.APP.connection.getJid()}</div>`;
+            } else {
+                this.body.innerHTML = `<div>Waiting for connection...</div>`;
+            }
         }, 3000);
     }
 
@@ -76,8 +80,17 @@ class AudioInfo extends HTMLElement {
             console.error(event.data.size);
             const reader = new FileReader();
             reader.onloadend = () => {
-                const base64 = reader.result.split(',')[1];
-                window.ssbot_writeSound(JSON.stringify({ myid: window.APP.conference.getMyUserId(), room: window.APP.conference.roomName, userid: this.userId, user: this.displayName, u: this.audioElement.id, d: base64 }));
+                if (window.APP && window.APP.conference) {
+                    const base64 = reader.result.split(',')[1];
+                    window.ssbot_writeSound(JSON.stringify({
+                        myid: window.APP.conference.getMyUserId ? window.APP.conference.getMyUserId() : 'unknown',
+                        room: window.APP.conference.roomName || 'unknown',
+                        userid: this.userId,
+                        user: this.displayName,
+                        u: this.audioElement.id,
+                        d: base64
+                    }));
+                }
             };
             reader.readAsDataURL(event.data);
         }
@@ -88,6 +101,17 @@ class AudioInfo extends HTMLElement {
     }
 
     syncInfo() {
+        if (!window.APP || !window.APP.conference || !window.APP.conference.listMembers) {
+            console.error("APP.conference not ready yet, will retry...");
+            // Попробуем еще раз через 2 секунды
+            if (!this.syncRetryCount) this.syncRetryCount = 0;
+            if (this.syncRetryCount < 10) {
+                this.syncRetryCount++;
+                setTimeout(() => this.syncInfo(), 2000);
+            }
+            return;
+        }
+
         const lst = window.APP.conference.listMembers();
         for (var m of lst) {
             for (var t of m._tracks) {
@@ -97,6 +121,7 @@ class AudioInfo extends HTMLElement {
                             this.displayName = m._displayName;
                             this.userId = m._id;
                             this.body.innerHTML = `<b>${this.displayName}</b>`;
+                            console.error(`syncInfo success: ${this.displayName} (${this.userId})`);
                         }
                     }
                 }

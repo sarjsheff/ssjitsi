@@ -10,6 +10,7 @@ JitsiBot Server is a Go-based automation tool that manages multiple bots to join
 - 🎯 **WebM format** with Opus codec for efficient storage
 - 🔧 **Configurable** through YAML configuration
 - 🛡️ **Headless Chrome automation** for reliable operation
+- 🔐 **Flexible authentication** - supports both username/password and JWT
 - 🌐 **Web interface** for real-time bot monitoring and screenshots
 - 🚀 **Multiple bot management** for simultaneous recordings
 
@@ -19,7 +20,7 @@ JitsiBot Server is a Go-based automation tool that manages multiple bots to join
 The Go application uses `chromedp` to automate Chrome browser:
 - Navigates to Jitsi Meet server
 - Joins specified conference room
-- Handles authentication if required
+- Handles authentication (username/password or JWT)
 - Injects custom JavaScript for audio recording
 
 ### 2. Audio Capture
@@ -46,9 +47,12 @@ The Go backend:
 
 ### Dependencies
 
-The project uses the following Go dependencies:
+The project uses the following key Go dependencies:
 - `github.com/chromedp/chromedp` - Chrome automation
 - `github.com/chromedp/cdproto` - Chrome DevTools Protocol
+- `github.com/golang-jwt/jwt/v5` - JWT token generation and signing
+- `github.com/gin-gonic/gin` - HTTP web framework
+- `gopkg.in/yaml.v2` - YAML configuration parsing
 
 ### Building from Source
 
@@ -98,7 +102,11 @@ Open http://localhost:8080/ in your browser to monitor bot status and view scree
 
 ### Configuration File Format
 
-The server uses a YAML configuration file to manage multiple bots:
+The server uses a YAML configuration file to manage multiple bots. The bot supports two authentication methods:
+
+#### Traditional Authentication (Username/Password)
+
+For Jitsi Meet servers with basic authentication:
 
 ```yaml
 http: ":8080"
@@ -108,18 +116,50 @@ bots:
     BotName: "Recording Bot 1"
     DataDir: "./data"
     JitsiServer: "https://meet.jit.si/"
-    Username: ""
-    Pass: ""
-    Headless: true
-
-  - Room: "conference-room-2"
-    BotName: "Recording Bot 2"
-    DataDir: "./data"
-    JitsiServer: "https://meet.jit.si/"
     Username: "user"
     Pass: "password"
     Headless: true
 ```
+
+#### JWT Authentication (Recommended for self-hosted Jitsi)
+
+For Jitsi Meet servers with JWT token authentication:
+
+```yaml
+http: ":8080"
+
+bots:
+  - Room: "my-room"
+    BotName: "JWT Bot"
+    DataDir: "./data"
+    JitsiServer: "https://jitsi.example.com"
+    JWTAppID: "your_app_id"
+    JWTAppSecret: "your_app_secret"
+    Headless: true
+```
+
+**JWT Authentication Details:**
+- Uses JSON Web Tokens (JWT) for secure authentication
+- Tokens are generated automatically using HS256 signing algorithm
+- Token includes claims: `iss`, `aud`, `sub`, `room`, `exp`, `context`
+- Token validity: 2 hours
+- Bot navigates directly to `{JitsiServer}/{Room}?jwt={token}`
+
+**Configuration Fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `Room` | Yes | Name of the conference room |
+| `BotName` | Yes | Display name for the bot |
+| `DataDir` | Yes | Directory to store recordings |
+| `JitsiServer` | Yes | URL of the Jitsi Meet server |
+| `Username` | No | Username for basic auth |
+| `Pass` | No | Password for basic auth |
+| `JWTAppID` | No | JWT application ID |
+| `JWTAppSecret` | No | JWT secret key for signing |
+| `Headless` | Yes | Run in headless mode (true/false) |
+
+**Note:** If both JWT credentials and Username/Pass are provided, JWT takes precedence.
 
 ## Web Interface
 
@@ -190,9 +230,94 @@ data/
 
 1. **Chrome not found**: Ensure Chrome/Chromium is installed
 2. **Permission denied**: Run with appropriate permissions for data directory
-3. **Authentication failed**: Verify username/password for protected rooms
+3. **Authentication failed**:
+   - For username/password: Verify credentials are correct
+   - For JWT: Check that `JWTAppID` and `JWTAppSecret` match your Jitsi configuration
+   - Verify Jitsi server JWT authentication is properly configured
 4. **Audio not recording**: Check browser console for errors
+5. **Bot joins but doesn't record**:
+   - Check that other participants have audio enabled
+   - Verify `script.js` is being injected properly
+   - Monitor Go logs for binding events
+6. **JWT token errors**:
+   - Ensure JWT secret matches the one configured on Jitsi server
+   - Check token hasn't expired (default: 2 hours validity)
+   - Verify room name matches the token claim
 
 ### Debug Mode
 
-For debugging, you can modify the script to run in non-headless mode (already configured) and check browser console for JavaScript errors.
+Set `Headless: false` in the configuration file to see the browser in action. This allows you to:
+- Visually confirm the bot joins the conference
+- Check browser console for JavaScript errors
+- Monitor network requests
+- Verify authentication flow
+
+### Checking Logs
+
+The bot outputs useful information:
+```bash
+2025/10/06 18:09:46 Используем JWT авторизацию
+2025/10/06 18:09:46 Переходим на URL: https://test-jitsi.aisa.ru/test_aiplan?jwt=***
+2025/10/06 18:09:50 Бот 1 успешно запущен (ID: bc4aa902-1172-4fd8-800a-91ac42e31592)
+```
+
+Expected console messages:
+- "Failed to create local tracks" - Normal, bot has no microphone
+- "Video track creation failed" - Normal, bot has no camera
+- "APP.conference not ready yet, will retry..." - Normal during initialization
+
+## JWT Authentication Setup
+
+### For Self-Hosted Jitsi Meet Servers
+
+To use JWT authentication, your Jitsi Meet server must be configured with JWT support. Here's a brief overview:
+
+#### Server Requirements
+
+1. **Prosody Configuration** (`/etc/prosody/conf.avail/your-domain.cfg.lua`):
+   ```lua
+   VirtualHost "your-domain.com"
+       authentication = "token"
+       app_id = "your_app_id"
+       app_secret = "your_app_secret"
+   ```
+
+2. **Install JWT Plugin**:
+   ```bash
+   apt-get install lua-basexx lua-cjson luarocks
+   luarocks install lua-sec
+   ```
+
+3. **Configure Jitsi Meet** (`/etc/jitsi/meet/your-domain-config.js`):
+   ```javascript
+   var config = {
+       hosts: {
+           domain: 'your-domain.com',
+           muc: 'conference.your-domain.com'
+       },
+       // ... other settings
+   };
+   ```
+
+#### Bot Configuration
+
+Once your Jitsi server is configured for JWT, use these settings in `ssjitsi.yaml`:
+
+```yaml
+bots:
+  - Room: "test-room"
+    BotName: "Recording Bot"
+    DataDir: ./data
+    JitsiServer: https://your-domain.com
+    JWTAppID: your_app_id          # Must match Prosody app_id
+    JWTAppSecret: your_app_secret  # Must match Prosody app_secret
+    Headless: true
+```
+
+The bot will automatically:
+1. Generate a JWT token with the correct claims
+2. Sign it with the provided secret
+3. Navigate to the room URL with the token: `https://your-domain.com/room?jwt=<token>`
+4. Join the conference without additional authentication prompts
+
+For more information on Jitsi JWT setup, see: https://jitsi.github.io/handbook/docs/devops-guide/secure-domain
